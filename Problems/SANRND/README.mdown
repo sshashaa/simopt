@@ -1,0 +1,41 @@
+# (SAN) - Stochastic Activity Network Duration
+
+### About the Problem
+
+Given a stochastic activity network, minimize the expected duration of the longest path from a starting node to an ending node. This problem is an extension of SAN. SAN encodes a *fixed* network with 9 nodes and 13 arcs. This problem generates a random network that depends on the seed passed to the problem structure function.
+
+For details on SAN, of which this problem is an extension, see the [documentation](https://github.com/simopt-admin/simopt/tree/master/Problems/SAN/SAN_Duration.pdf).
+
+### Decision variables
+The mean of each arc duration, so the number of decision variables is the number of arcs. Are durations are exponentially distributed and mutually independent.
+
+### Variable bounds
+All variables are assumed to lie within the interval [0.01, 100].
+
+### Objective function
+The mean of the duration of the longest path plus the sum of the reciprocals of the mean arc durations. The sum of reciprocals penalizes short arc durations.
+
+### The distribution of the random network
+The underlying network is a random feedforward network. Network *hyperparameters* are hard coded in the structure function.
+1. The number of nodes is uniformly distributed on the integers between min_nodes and max_nodes. (min_nodes and max_nodes are hyperparameters)
+2. The number of arcs is random. Arcs are generated in two passes through the nodes.
+3. On the first pass through the nodes, for each *current node*, *fwd_arcs* (hyperparameter) node indices are independently generated uniformly over the next *fwd_reach* (hyperparameter) nodes. Arcs from the current node to these generated nodes are then added. Duplicate arcs are not added.
+4. On the second pass through the nodes, for each *current node* we add a new arc from a randomly selected previous node to the current node. The previous node lies within *fwd_reach* nodes of the current one, and duplicate arcs are not added.
+
+At the conclusion of this generation procedure the feedforward network is connected, all nodes can be reached, and all nodes have a path to the final (destination) node. The number of arcs depends on how many duplicates are encountered, but should be approximately linear in the number of nodes, with the multiplicative constant depending on the hyperparameters *fwd_arcs* and *fwd_reach*.
+
+### Properties
+
+**Variable Class:** Continuous.
+
+**Constraints Class:** Variable bounds.
+
+**Optimal Solutions:** Unknown.
+
+**Known Structure:** The objective function is convex. An IPA estimator of the gradient is provided in the code.
+
+### References
+Avramidis, A. N., and J. R. Wilson (1996). Integrated variance reduction strategies for simulation. *Operations Research* 44(2):327-346.
+[Paper](https://pubsonline.informs.org/doi/10.1287/opre.44.2.327).
+
+

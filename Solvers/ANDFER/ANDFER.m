@@ -58,7 +58,7 @@
 %% Anderson-Ferris
 function [Ancalls, A, AFnMean, AFnVar, AFnGrad, AFnGradCov, ...
     AConstraint, AConstraintCov, AConstraintGrad, ...
-    AConstraintGradCov] = ANDFER(probHandle, probstructHandle, problemRng, solverRng)
+    AConstraintGradCov] = ANDFER(probHandle, probstructHandle, problemRng, solverRng, ProblemInstance)
 
 %% Unreported
 AFnGrad = NaN;
@@ -79,12 +79,12 @@ seq = 10^(-18); % \eta sequence from Anderson-Ferris paper
 
 % Generate 10 random solutions and compute the std dev in each dimension
 RandStream.setGlobalStream(solverInternalRng);
-[~, ~, ~, ~, ~, ~, ~, ssolsM, ~, ~, ~, ~] = probstructHandle(10);
+[~, ~, ~, ~, ~, ~, ~, ssolsM, ~, ~, ~, ~] = probstructHandle(10, ProblemInstance);
 e2 = std(ssolsM);
 
 % Generate new starting point x0
 RandStream.setGlobalStream(solverInitialRng);
-[minmax, dim, ~, ~, VarBds, ~, ~, x0, budget, ~, ~, ~] = probstructHandle(1); 
+[minmax, dim, ~, ~, VarBds, ~, ~, x0, budget, ~, ~, ~] = probstructHandle(1, ProblemInstance); 
 
 % Shrink VarBds to prevent floating errors
 VarBds(:,1) = VarBds(:,1) + sensitivity; 
@@ -135,13 +135,13 @@ Bspent = 0;
 % Record initial solution data
 Ancalls(1) = 0;
 A(1,:) = x0;
-[AFnMean(1), AFnVar(1), ~, ~, ~, ~, ~, ~] = probHandle(x0, r, problemRng, problemseed);
+[AFnMean(1), AFnVar(1), ~, ~, ~, ~, ~, ~] = probHandle(x0, r, problemRng, problemseed, ProblemInstance);
 
 % Record only when recommended solution changes
 record_index = 2;
 
 % Evaluate points in initial structure and sort
-[ssolsMl2h, l2hfnV, l2hfnVarV] = evalExtM(ssolsM, numExtPts,r, probHandle, problemRng, problemseed, minmax);
+[ssolsMl2h, l2hfnV, l2hfnVarV] = evalExtM(ssolsM, numExtPts,r, probHandle, problemRng, problemseed, minmax, ProblemInstance);
 Bspent = Bspent + r*numExtPts; % Total budget spent
 b = l2hfnV(1); % Best obj function value in initial structure
 
@@ -167,7 +167,7 @@ while Bspent <= budget
     end
         
     % Evaluate the new points in the reflected structure
-    [TssolsMl2h, Tl2hfnV, Tl2hfnVarV] = evalExtM(T(2:numExtPts,:), numExtPts - 1, r, probHandle, problemRng, problemseed, minmax);
+    [TssolsMl2h, Tl2hfnV, Tl2hfnVarV] = evalExtM(T(2:numExtPts,:), numExtPts - 1, r, probHandle, problemRng, problemseed, minmax, ProblemInstance);
     Bspent = Bspent + r*(numExtPts - 1); % Total budget spent
 
     % Store points, fn values, and fn value variances for all points in T
@@ -207,7 +207,7 @@ while Bspent <= budget
         end
         
         % Evaluate the new points in the expanded structure U
-        [UssolsMl2h, Ul2hfnV, Ul2hfnVarV] = evalExtM(U(2:numExtPts,:), numExtPts - 1, r,  probHandle, problemRng, problemseed, minmax);
+        [UssolsMl2h, Ul2hfnV, Ul2hfnVarV] = evalExtM(U(2:numExtPts,:), numExtPts - 1, r,  probHandle, problemRng, problemseed, minmax, ProblemInstance);
         Bspent = Bspent + r*(numExtPts - 1); % Total budget spend
 
         % Store points, fn values, and fn value variances for all points in T
@@ -249,7 +249,7 @@ while Bspent <= budget
         C = 0.5*(repmat(vS, numExtPts,1) + ssolsMl2h);
         
         % Evaluate all (including the pivot) point in the contracted structure C
-        [CssolsMl2h, Cl2hfnV, Cl2hfnVarV] = evalExtM(C, numExtPts, r, probHandle, problemRng, problemseed, minmax);
+        [CssolsMl2h, Cl2hfnV, Cl2hfnVarV] = evalExtM(C, numExtPts, r, probHandle, problemRng, problemseed, minmax, ProblemInstance);
         Bspent = Bspent + r*numExtPts;
         % !! If using CRN, the pivot point vS will have the same estimate
         % In which case, there wouldn't be a need to re-evaluate vS
@@ -296,11 +296,11 @@ AFnVar = AFnVar(1:record_index);
 % If called, will spend (r*numExtPts) budget.
 % Maximization problem is converted to minimization by -z.
     function [ssolsMl2h, l2hfnV, l2hfnVarV] = evalExtM(ssolsM, numExtPts,...
-            r, probHandle, problemRng, problemseed, minmax)
+            r, probHandle, problemRng, problemseed, minmax, ProblemInstance)
         fnV = zeros(numExtPts, 1); % To track soln
         fnVarV = zeros(numExtPts, 1);
         for i1 = 1:numExtPts
-            [fn, FnVar, ~, ~, ~, ~, ~, ~] = probHandle(ssolsM(i1,:), r, problemRng, problemseed);
+            [fn, FnVar, ~, ~, ~, ~, ~, ~] = probHandle(ssolsM(i1,:), r, problemRng, problemseed, ProblemInstance);
             fnV(i1) = -minmax*fn; % Minimize fn
             fnVarV(i1) = FnVar;
         end

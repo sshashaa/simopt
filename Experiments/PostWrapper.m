@@ -1,4 +1,4 @@
-function PostWrapper(problemnameArray, solvernameArray, repsSoln)
+function PostWrapper(problemnameArray, solvernameArray, repsSoln, Instanceseed)
 % Take post-replications at solutions recorded during previous
 % runs of solvers on problems.
 
@@ -6,11 +6,18 @@ function PostWrapper(problemnameArray, solvernameArray, repsSoln)
 % problemnameArray: structure listing the problem names
 % solvernameArray: structure listing the solver names
 % repsSoln: number of replications for post-evaluation of solutions
+% Instanceseed: an optional substream index to refer to a random
+%   problem instance
 
 %   *************************************************************
 %   ***                 Updated by David Eckman               ***
 %   ***     david.eckman@northwestern.edu   Dec 22, 2019      ***
 %   *************************************************************
+
+% If Instanceseed not provided, set as default value 1.
+if nargin == 3
+    Instanceseed = 1;
+end
 
 numAlgs = length(solvernameArray);
 
@@ -34,19 +41,22 @@ for k1 = 1:length(problemnameArray)
     end
     
     rmpath(problempath)
-            
-    % Get the number of streams needed for the problem
-    [~, ~, ~, ~, ~, ~, ~, ~, ~, ~, ~, NumRngs] = probstructHandle(0);
     
     for k2 = 1:numAlgs       
         
         solvername = solvernameArray{k2};
-        
+                
         % Read in output for the solver-problem pairing 
-        load(strcat('RawData/RawData_',solvername,'_on_',problemname,'.mat'), 'BudgetMatrix', 'SolnMatrix');
+        load(strcat('RawData/RawData_',solvername,'_on_',problemname,'_seed',num2str(Instanceseed),'.mat'), 'BudgetMatrix', 'SolnMatrix', 'ProblemInstance');
+        % Create a duplicate of ProblemInstance, for parallel pool
+        ProblemInstanceParallel = ProblemInstance;
+
         
         % Initialize matrix of function values
         FMatrix = zeros(size(SolnMatrix, 1), 1);
+        
+        % Get the number of streams needed for the problem
+        [~, ~, ~, ~, ~, ~, ~, ~, ~, ~, ~, NumRngs] = probstructHandle(0, ProblemInstance);
         
         % Create a common set of new random number streams (#s = NumRngs*(j-1)+1, ... NumRngs*j)
         % to use for each macrorep solution.
@@ -59,18 +69,18 @@ for k1 = 1:length(problemnameArray)
    
         % Post-evaluate the function at the initial and returned solutions
         fprintf('Post-evaluating solutions from solver %s on problem %s: \n', solvername, problemname)
-        
+                
         parfor j = 1:size(SolnMatrix, 1)
             % Obtain repsSoln replications of the obj fn (using CRN via substreams)
-            [FMatrix(j), ~, ~, ~, ~, ~, ~, ~] = probHandle(SolnMatrix(j,:), repsSoln, problemRng, 1);
+            [FMatrix(j), ~, ~, ~, ~, ~, ~, ~] = probHandle(SolnMatrix(j,:), repsSoln, problemRng, 1, ProblemInstanceParallel);
         end
        
         % Store data in .mat file in the PostData folder
-        solnsfilename = strcat('PostData_',solvername,'_on_',problemname,'.mat');
+        solnsfilename = strcat('PostData_',solvername,'_on_',problemname,'_seed',num2str(Instanceseed),'.mat');
         if exist(strcat('PostData/',solnsfilename), 'file') == 2
             fprintf('\t Overwriting \t --> ')
         end
-        save(strcat(pwd,'/PostData/PostData_',solvername,'_on_',problemname,'.mat'), 'BudgetMatrix', 'FMatrix');
+        save(strcat(pwd,'/PostData/PostData_',solvername,'_on_',problemname,'_seed',num2str(Instanceseed),'.mat'), 'BudgetMatrix', 'FMatrix', 'ProblemInstance');
         fprintf('\t Saved output to file "%s" \n', solnsfilename)
 
     end

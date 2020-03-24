@@ -1,4 +1,4 @@
-function [minmax, d, m, VarNature, VarBds, FnGradAvail, NumConstraintGradAvail, StartingSol, budget, ObjBd, OptimalSol, NumRngs] = SANStructure(NumStartingSol)
+function [minmax, d, m, VarNature, VarBds, FnGradAvail, NumConstraintGradAvail, StartingSol, budget, ObjBd, OptimalSol, NumRngs, isRandom] = SANStructure(NumStartingSol, ProblemInstance)
 
 % Inputs:
 %	a) NumStartingSol: Number of starting solutions required. Integer, >= 0
@@ -31,6 +31,7 @@ function [minmax, d, m, VarNature, VarBds, FnGradAvail, NumConstraintGradAvail, 
 %        solution if known, and it equals NaN if no optimal solution is known.
 %   l) NumRngs: the number of random number streams needed by the
 %        simulation model
+%   m) isRandom: = 1 if random problemm, = 0 if deterministic
 
 %   *************************************************************
 %   ***                Written by Shane Henderson             ***
@@ -39,7 +40,7 @@ function [minmax, d, m, VarNature, VarBds, FnGradAvail, NumConstraintGradAvail, 
 %   ***            dje88@cornell.edu     Sept 4, 2018         ***
 %   *************************************************************
 
-
+isRandom = 0; % deterministic
 minmax = -1; % minimize
 d = 13; % 13 arcs
 m = 0; % Just bounds on thetas

@@ -1,4 +1,4 @@
-function [fn, FnVar, FnGrad, FnGradCov, constraint, ConstraintCov, ConstraintGrad, ConstraintGradCov] = SAN(x, runlength, problemRng, seed)
+function [fn, FnVar, FnGrad, FnGradCov, constraint, ConstraintCov, ConstraintGrad, ConstraintGradCov] = SAN(x, runlength, problemRng, seed, problemInstance)
 
 % INPUTS
 % x: a column vector equaling the decision variables theta

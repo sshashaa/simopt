@@ -1,4 +1,4 @@
-function PlotWrapper(problemnameArray, solvernameArray)
+function PlotWrapper(problemnameArray, solvernameArray, Instanceseed)
 % Make plots for each problem comparing the performance of different algorithms
 
 % Inputs:
@@ -9,6 +9,11 @@ function PlotWrapper(problemnameArray, solvernameArray)
 %   ***                 Updated by David Eckman               ***
 %   ***     david.eckman@northwestern.edu   Dec 22, 2019      ***
 %   *************************************************************
+
+% If Instanceseed not provided, set as default value 1.
+if nargin == 2
+    Instanceseed = 1;
+end
 
 % Other default parameters
 CILevel = 0.95; % Confidence interval level
@@ -39,9 +44,6 @@ for k1 = 1:length(problemnameArray)
     addpath(problempath)
     probstructHandle = str2func(strcat(problemname, 'Structure'));
     rmpath(problempath)
-            
-    % Get the problem's min/max and budget 
-    [minmax, ~, ~, ~, ~, ~, ~, ~, budget, ~, ~, ~] = probstructHandle(0);
     
     % Initialize cell for storing summary statistics for each algorithm
     plot_data_cell = cell(numAlgs, 7);
@@ -52,8 +54,11 @@ for k1 = 1:length(problemnameArray)
         solvername = solvernameArray{k2};
         
         % Read in output for the solver-problem pairing as "SMatrix"
-        load(strcat('PostData/PostData_',solvername,'_on_',problemname,'.mat'),'BudgetMatrix','FMatrix');
+        load(strcat('PostData/PostData_',solvername,'_on_',problemname,'_seed',num2str(Instanceseed),'.mat'),'BudgetMatrix','FMatrix', 'ProblemInstance');
         repsAlg = max(BudgetMatrix(:,1)); %%%size(FMatrix, 1);
+        
+        % Get the problem's min/max and budget 
+        [minmax, ~, ~, ~, ~, ~, ~, ~, budget, ~, ~, ~, ~] = probstructHandle(0, ProblemInstance);
         
         % Extract budget points
         budget_pts = unique(BudgetMatrix(:,2))';
@@ -78,7 +83,7 @@ for k1 = 1:length(problemnameArray)
         xlabel('Budget','FontSize',14); 
         ylabel('Objective Function Value','FontSize',14);
         minmaxList = {'min','-','max'};
-        title([num2str(repsAlg), ' Macroreps of ', solvername, ' Solver on ', problemname, ' Problem (',minmaxList{minmax+2},')'],'FontSize',15);
+        title([num2str(repsAlg), ' Macroreps of ', solvername, ' Solver on ', problemname, ' Problem (',minmaxList{minmax+2},') - Seed ', num2str(Instanceseed)],'FontSize',15);
         
         % Formatting
         axis([0, budget, min(min(FBudget)), max(max(FBudget))]);
@@ -127,7 +132,7 @@ for k1 = 1:length(problemnameArray)
     xlabel('Budget','FontSize',14); 
     ylabel('Objective Function Value','FontSize',14);
     minmaxList = {'min','-','max'};
-    title(['Mean-CI Plot for ', problemname, ' Problem (',minmaxList{minmax+2},')'],'FontSize',15);
+    title(['Mean-CI Plot for ', problemname, ' Problem (',minmaxList{minmax+2},') - Seed ', num2str(Instanceseed)],'FontSize',15);
     
     % Add a legend
     AlgNamesLegend = solvernameArray;
@@ -166,7 +171,7 @@ for k1 = 1:length(problemnameArray)
     xlabel('Budget','FontSize',14); 
     ylabel('Objective Function Value','FontSize',14);
     minmaxList = {'min','-','max'};
-    title(['Median-Quantile Plot for ', problemname, ' Problem (',minmaxList{minmax+2},')'],'FontSize',15);
+    title(['Median-Quantile Plot for ', problemname, ' Problem (',minmaxList{minmax+2},') - Seed ', num2str(Instanceseed)],'FontSize',15);
     
     % Add a legend
     AlgNamesLegend = solvernameArray;

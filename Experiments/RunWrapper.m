@@ -1,4 +1,4 @@
-function RunWrapper(problemnameArray, solvernameArray, repsAlg)
+function RunWrapper(problemnameArray, solvernameArray, repsAlg, Instanceseed, InstanceParameters)
 % Run multiple algorithms on multiple problems and write the solutions
 % visited, objective function means and variances to .mat files for 
 % each algorithm-problem pair.
@@ -7,12 +7,20 @@ function RunWrapper(problemnameArray, solvernameArray, repsAlg)
 % problemnameArray: structure listing the problem names
 % solvernameArray: structure listing the solver names
 % repsAlg: number of macroreplications of each solver on each problem
+% Instanceseed: an optional substream index to use for generating random
+%   problem instances
 
 %   *************************************************************
 %   ***                 Updated by David Eckman               ***
 %   ***     david.eckman@northwestern.edu   Dec 22, 2019      ***
 %   *************************************************************
 
+if nargin == 4
+    InstanceParameters = {};
+elseif nargin == 3
+    Instanceseed = 1;
+    InstanceParameters = {};
+end
 
 % Check if number of macroreplications is an integer
 if (repsAlg <= 0) || (mod(repsAlg,1) ~= 0)
@@ -22,7 +30,8 @@ end
 
 for k1 = 1:length(problemnameArray)
     
-    % Create function handles for problem and problem structure
+    % Create function handles for problem, problem structure, and problem
+    % generate
     problemname = problemnameArray{k1};
     problempath = strcat(pwd,'/../Problems/',problemname);
     if exist(problempath, 'dir') ~= 7
@@ -32,7 +41,8 @@ for k1 = 1:length(problemnameArray)
     addpath(problempath)
     probHandle = str2func(problemname);
     probstructHandle = str2func(strcat(problemname, 'Structure'));
-    
+    probgenHandle = str2func(strcat(problemname, 'Generate'));
+
     % If Parallel Computing Toolbox installed...
     if exist('gcp', 'file') == 2
         % Share problem file PROBLEMNAME.m to all processors
@@ -41,9 +51,40 @@ for k1 = 1:length(problemnameArray)
     end
     
     rmpath(problempath)
+ 
+    % Check if the problem is random
+    [~, ~, ~, ~, ~, ~, ~, ~, ~, ~, ~, ~, isRandom] = probstructHandle(0, {});
+
+    if isRandom == 1 % if problem is random, generate random problem instance      
+        
+        % Create 1 new random number streams that is common across macroreps:
+        %       Stream 1 is used to generate the random problem instance
+        InstanceRng = RandStream.create('mrg32k3a', 'NumStreams', 1, ...
+            'StreamIndices', 1);
+        
+        % Check if given Instanceseed is valid. Otherwise default
+        if (Instanceseed <= 0) || (round(Instanceseed) ~= Instanceseed)
+            fprintf('Problem instance seed was unspecified or not a positive integer. Setting to default value of 1.\n');
+            Instanceseed = 1;
+        end
     
+        % Generate random problem instance
+        RandStream.setGlobalStream(InstanceRng);
+        InstanceRng.Substream = Instanceseed;
+        ProblemInstance = probgenHandle(InstanceParameters);
+    
+    else % deterministic problem -> ProblemInstance is unused
+        ProblemInstance = {};
+    end
+    
+%      % If Parallel Computing Toolbox installed...
+%     if exist('gcp', 'file') == 2
+%         % Share variable ProblemInstance to all processors
+%         addAttachedFiles(gcp, ProblemInstance)
+%     end
+        
     % Get the number of streams needed for the problem
-    [~, ~, ~, ~, ~, ~, ~, ~, ~, ~, ~, NumRngs] = probstructHandle(0);
+    [~, ~, ~, ~, ~, ~, ~, ~, ~, ~, ~, NumRngs, ~] = probstructHandle(0, ProblemInstance);
         
     for k2 = 1:length(solvernameArray)   
         
@@ -78,22 +119,25 @@ for k1 = 1:length(problemnameArray)
             
             fprintf('\t Macroreplication %d of %d ... \n', j, repsAlg)
             
-            % Create (1 + NumRngs) new random number streams to use for each macrorep solution
-            % (#s = {(1 + NumRngs)*(j - 1) + 1, ... (1 + NumRngs)*j}) 
-            % I.e., for the first macrorep, Stream 1 will be used for the solver
-            % and Streams 2, ..., 1 + NumRngs will be used for the problem
+            % Create (2 + NumRngs) new random number streams to use for each macrorep solution
+            % (#s = {1 + (2 + NumRngs)*(j - 1) + 1, ..., 1 + (2 + NumRngs)*j}) 
+            % I.e., for the first macrorep, 
+            %       Stream 2 will be used to generate the random initial solution
+            %       Stream 3 will be used for a solver's internal randomness
+            %       Streams 4, ..., 3 + NumRngs will be used by the problem function
             solverRng = cell(1, 2);
-            [solverRng{1}, solverRng{2}] = RandStream.create('mrg32k3a', 'NumStreams', (2 + NumRngs)*repsAlg, ...
-                'StreamIndices', [(2 + NumRngs)*(j - 1) + 1, (2 + NumRngs)*(j - 1) + 2]);
+            [solverRng{1}, solverRng{2}] = RandStream.create('mrg32k3a', 'NumStreams', 1 + (2 + NumRngs)*repsAlg, ...
+                'StreamIndices', [1 + (2 + NumRngs)*(j - 1) + 1, 1 + (2 + NumRngs)*(j - 1) + 2]);
             
             problemRng = cell(1, NumRngs);
             for i = 1:NumRngs
-                problemRng{i} = RandStream.create('mrg32k3a', 'NumStreams', (2 + NumRngs)*repsAlg, 'StreamIndices', (2 + NumRngs)*(j - 1) + 2 + i);
+                problemRng{i} = RandStream.create('mrg32k3a', 'NumStreams', 1 + (2 + NumRngs)*repsAlg, ...
+                    'StreamIndices', 1 + (2 + NumRngs)*(j - 1) + 2 + i);
             end
-                        
+                                    
             % Run the solver on the problem and return the solutions (and
             % obj fn mean and variance) whenever the recommended solution changes
-            [Ancalls_cell{j}, A_cell{j}, AFnMean_cell{j}, AFnVar_cell{j}, ~, ~, ~, ~, ~, ~] = solverHandle(probHandle, probstructHandle, problemRng, solverRng);
+            [Ancalls_cell{j}, A_cell{j}, AFnMean_cell{j}, AFnVar_cell{j}, ~, ~, ~, ~, ~, ~] = solverHandle(probHandle, probstructHandle, problemRng, solverRng, ProblemInstance);
             
             % Append macroreplication number to reporting of budget points
             Ancalls_cell{j} = [j*ones(length(Ancalls_cell{j}),1), Ancalls_cell{j}];
@@ -107,11 +151,11 @@ for k1 = 1:length(problemnameArray)
         FnVarMatrix = cat(1, AFnVar_cell{:});
         
         % Store data in .mat file in RawData folder
-        solnsfilename = strcat('RawData_',solvername,'_on_',problemname,'.mat');
+        solnsfilename = strcat('RawData_',solvername,'_on_',problemname,'_seed',num2str(Instanceseed)','.mat');
         if exist(strcat('RawData/',solnsfilename), 'file') == 2
             fprintf('\t Overwriting \t --> ')
         end
-        save(strcat(pwd,'/RawData/RawData_',solvername,'_on_',problemname,'.mat'), 'BudgetMatrix', 'SolnMatrix', 'FnMeanMatrix', 'FnVarMatrix');
+        save(strcat(pwd,'/RawData/RawData_',solvername,'_on_',problemname,'_seed',num2str(Instanceseed)','.mat'), 'BudgetMatrix', 'SolnMatrix', 'FnMeanMatrix', 'FnVarMatrix', 'ProblemInstance');
         fprintf('\t Saved output to file "%s" \n', solnsfilename)
     end
 end
